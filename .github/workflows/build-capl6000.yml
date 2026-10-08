@@ -11,6 +11,24 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      # Cache downloaded OpenWrt source packages
+      - name: Cache OpenWrt downloads
+        uses: actions/cache@v4
+        with:
+          path: dl
+          key: capl6000-dl-${{ runner.os }}-${{ hashFiles('**/Makefile', 'feeds.conf.default') }}
+          restore-keys: |
+            capl6000-dl-${{ runner.os }}-
+
+      # Cache compiler output
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: capl6000-ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            capl6000-ccache-${{ runner.os }}-
+
       - name: Build inside Ubuntu 18.04
         run: |
           docker run --rm \
@@ -21,6 +39,10 @@ jobs:
               set -e
 
               export FORCE_UNSAFE_CONFIGURE=1
+              export CCACHE_DIR=/work/.ccache
+              export CCACHE_BASEDIR=/work
+
+              echo "=== Installing build dependencies ==="
 
               apt-get update
 
@@ -52,32 +74,46 @@ jobs:
                 swig \
                 time \
                 xsltproc \
-                ca-certificates
+                ca-certificates \
+                ccache
 
               echo "=== Versions ==="
               gcc --version
               g++ --version
               python --version
+              ccache --version
 
               echo "=== Update feeds ==="
               ./scripts/feeds update -a
               ./scripts/feeds install -a
 
               echo "=== Configure CAPL-6000 ==="
-              echo "CONFIG_TARGET_ath79=y" > .config
+
+              rm -f .config
+
+              echo "CONFIG_TARGET_ath79=y" >> .config
               echo "CONFIG_TARGET_ath79_generic=y" >> .config
               echo "CONFIG_TARGET_ath79_generic_DEVICE_hanbit_capl-6000=y" >> .config
+              echo "CONFIG_CCACHE=y" >> .config
 
               make defconfig
 
-              echo "=== Build ==="
-              make -j$(nproc) V=s
+              echo "=== CHECK CONFIG ==="
+              grep -E "CAPL|capl|CCACHE|TARGET_ath79" .config || true
+
+              echo "=== BUILD START ==="
+
+              make -j2 V=s
+
+              echo "=== BUILD FINISHED ==="
+
+              ccache -s || true
             '
 
       - name: Show generated files
         if: always()
         run: |
-          echo "=== BIN files ==="
+          echo "=== Generated BIN files ==="
           find bin/targets -type f -name "*.bin" -print 2>/dev/null || true
 
       - name: Upload CAPL-6000 firmware
