@@ -65,7 +65,7 @@ jobs:
 
               make defconfig
 
-              make -j$(nproc) V=s
+              make -j1 V=sc
             '
 
       - name: Show generated files
