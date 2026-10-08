@@ -20,6 +20,8 @@ jobs:
             bash -c '
               set -e
 
+              export FORCE_UNSAFE_CONFIGURE=1
+
               apt-get update
 
               DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -52,29 +54,37 @@ jobs:
                 xsltproc \
                 ca-certificates
 
+              echo "=== Versions ==="
               gcc --version
               g++ --version
               python --version
 
+              echo "=== Update feeds ==="
               ./scripts/feeds update -a
               ./scripts/feeds install -a
 
+              echo "=== Configure CAPL-6000 ==="
               echo "CONFIG_TARGET_ath79=y" > .config
               echo "CONFIG_TARGET_ath79_generic=y" >> .config
               echo "CONFIG_TARGET_ath79_generic_DEVICE_hanbit_capl-6000=y" >> .config
 
               make defconfig
 
-              make -j1 V=sc
+              echo "=== Build ==="
+              make -j1 V=s
             '
 
       - name: Show generated files
+        if: always()
         run: |
-          find bin/targets -type f -name "*.bin" -print || true
+          echo "=== BIN files ==="
+          find bin/targets -type f -name "*.bin" -print 2>/dev/null || true
 
       - name: Upload CAPL-6000 firmware
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: CAPL-6000-firmware
           path: |
             bin/targets/ath79/generic/*capl-6000*.bin
+          if-no-files-found: error
