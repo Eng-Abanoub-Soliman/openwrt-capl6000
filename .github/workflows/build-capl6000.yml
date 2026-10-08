@@ -71,7 +71,7 @@ jobs:
               make defconfig
 
               echo "=== Build ==="
-              make -j1 V=s
+              make -j$(nproc) V=s
             '
 
       - name: Show generated files
